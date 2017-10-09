@@ -59,21 +59,31 @@ func Parser() {
 
 }
 func ParserProtocol(p Protocol) {
-	//RegistryNumber := p.RegistryNumber
+	RegistryNumber := p.RegistryNumber
 	DatePublished := p.DatePublished
 	DateUpdated :=p.DateUpdated
 	if DateUpdated == (time.Time{}){
 		DateUpdated = DatePublished
 	}
-	//IdXml := p.IdProtocol
+	IdXml := p.IdProtocol
 	//Version := 0
 
-	//fmt.Println(DateUpdated)
+	fmt.Println(IdXml)
+	fmt.Println(RegistryNumber)
+	fmt.Println(DateUpdated.Format("2006-01-02T15:04:05"))
 	Dsn := fmt.Sprintf("root:1234@/%s?charset=utf8&parseTime=true&readTimeout=60m", DbName)
 	db, err := sql.Open("mysql", Dsn)
 	defer db.Close()
 	if err != nil{
 		Logging("Ошибка подключения к БД", err)
+	}
+	stmt, err := db.Prepare(fmt.Sprintf("SELECT id_tender FROM %stender WHERE id_xml = ? AND purchase_number = ? AND date_version = ?", Prefix))
+	res, err := stmt.Query(IdXml, RegistryNumber, DateUpdated.Format("2006-01-02T15:04:05"))
+	if err != nil{
+		Logging("Ошибка подключения к БД", err)
+	}
+	if res.Next(){
+		Logging("Такой тендер уже есть", RegistryNumber)
 	}
 	
 }
