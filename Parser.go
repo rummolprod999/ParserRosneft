@@ -6,15 +6,16 @@ import (
 	"io/ioutil"
 	"net/http"
 	"time"
+	_ "github.com/go-sql-driver/mysql"
+	"database/sql"
 )
 
-var FileProt string
 var fl FileProtocols
-
+var UrlXml string
 func DownLoadFile() string {
 	tNow := time.Now()
 	tMinus3H := tNow.Add(time.Hour * -4)
-	s := fmt.Sprintf("http://ws-rn.tektorg.ru/export/procedures?start_date=%v.000000%%2b03:00&end_date=%v.000000%%2b03:00", tMinus3H.Format("2006-01-02T15:04:05"), tNow.Format("2006-01-02T15:04:05"))
+	UrlXml = fmt.Sprintf("http://ws-rn.tektorg.ru/export/procedures?start_date=%v.000000%%2b03:00&end_date=%v.000000%%2b03:00", tMinus3H.Format("2006-01-02T15:04:05"), tNow.Format("2006-01-02T15:04:05"))
 	//fmt.Println(s)
 	count := 0
 	for {
@@ -22,9 +23,9 @@ func DownLoadFile() string {
 			Logging(fmt.Sprintf("Не скачали файл за %d попыток", count))
 			return ""
 		}
-		resp, err := http.Get(s)
+		resp, err := http.Get(UrlXml)
 		if err != nil {
-			Logging("Ошибка скачивания", s, err)
+			Logging("Ошибка скачивания", UrlXml, err)
 			count++
 			continue
 		}
@@ -53,9 +54,26 @@ func Parser() {
 	}
 	for _, r := range fl.Protocols {
 		ParserProtocol(r)
+		break
 	}
 
 }
 func ParserProtocol(p Protocol) {
-	fmt.Println(p.RegistryNumber)
+	//RegistryNumber := p.RegistryNumber
+	DatePublished := p.DatePublished
+	DateUpdated :=p.DateUpdated
+	if DateUpdated == (time.Time{}){
+		DateUpdated = DatePublished
+	}
+	//IdXml := p.IdProtocol
+	//Version := 0
+
+	//fmt.Println(DateUpdated)
+	Dsn := fmt.Sprintf("root:1234@/%s?charset=utf8&parseTime=true&readTimeout=60m", DbName)
+	db, err := sql.Open("mysql", Dsn)
+	defer db.Close()
+	if err != nil{
+		Logging("Ошибка подключения к БД", err)
+	}
+	
 }

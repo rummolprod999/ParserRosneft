@@ -1,6 +1,8 @@
 package main
 
 var FileLog Filelog
+var DbName = "tender"
+var Prefix = ""
 
 func init() {
 	CreateLogFile()
