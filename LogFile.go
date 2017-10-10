@@ -15,11 +15,13 @@ func Logging(args ...interface{}) {
 		fmt.Println("Ошибка записи в файл лога", err)
 		return
 	}
-
+	fmt.Fprintf(file, "%v  ", time.Now())
 	for _, v := range args {
-		fmt.Fprintf(file, "%v  ", time.Now())
-		fmt.Fprintf(file, "%v\n", v)
+
+		fmt.Fprintf(file, " %v", v)
 	}
+	fmt.Fprintln(file, "")
+
 }
 
 func CreateLogFile() {
@@ -33,7 +35,7 @@ func CreateLogFile() {
 		}
 	}
 	t := time.Now()
-	ft := t.Format("2006-01-02T15:04:05")
+	ft := t.Format("2006-01-02")
 	FileLog = Filelog(fmt.Sprintf("%s/log_rosneft_%v.log", dirlog, ft))
 	/*file, err := os.Create(string(FileLog))
 	defer file.Close()
