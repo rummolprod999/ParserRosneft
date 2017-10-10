@@ -187,7 +187,7 @@ func ParserProtocol(p Protocol) {
 	IdEtp := 0
 	etpName := "ЭТП ТЭК-Торг секция ОАО «НК «Роснефть»"
 	etpUrl := "https://rn.tektorg.ru/"
-	if etpName != "" && etpUrl != "" {
+	if true {
 		stmt, _ := db.Prepare(fmt.Sprintf("SELECT id_etp FROM %setp WHERE name = ? AND url = ? LIMIT 1", Prefix))
 		rows, err := stmt.Query(etpName, etpUrl)
 		if err != nil {
