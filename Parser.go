@@ -8,6 +8,7 @@ import (
 	//"golang.org/x/tools/go/gcimporter15/testdata"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -152,7 +153,7 @@ func ParserProtocol(p Protocol) {
 			stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %sorganizer SET full_name = ?, post_address = ?, fact_address = ?, contact_email = ?, contact_phone = ?, contact_person = ?", Prefix))
 			res, err := stmt.Exec(OrganizerfullName, OrgPostAddress, OrgUrAddress, ContactEmail, ContactPhone, ContactPerson)
 			if err != nil {
-				Logging("Ошибка чтения вставки организатора", err)
+				Logging("Ошибка вставки организатора", err)
 			}
 			id, err := res.LastInsertId()
 			IdOrganizer = int(id)
@@ -176,7 +177,7 @@ func ParserProtocol(p Protocol) {
 			stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %splacing_way SET code= ?, name= ?", Prefix))
 			res, err := stmt.Exec(PwCode, PwName)
 			if err != nil {
-				Logging("Ошибка чтения вставки placing way", err)
+				Logging("Ошибка вставки placing way", err)
 			}
 			id, err := res.LastInsertId()
 			IdPlacingWay = int(id)
@@ -201,7 +202,7 @@ func ParserProtocol(p Protocol) {
 			stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %setp SET name = ?, url = ?, conf=0", Prefix))
 			res, err := stmt.Exec(etpName, etpUrl)
 			if err != nil {
-				Logging("Ошибка чтения вставки etp", err)
+				Logging("Ошибка вставки etp", err)
 			}
 			id, err := res.LastInsertId()
 			IdEtp = int(id)
@@ -222,12 +223,10 @@ func ParserProtocol(p Protocol) {
 	stmtt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %stender SET id_region = 0, id_xml = ?, purchase_number = ?, doc_publish_date = ?, href = ?, purchase_object_info = ?, type_fz = ?, id_organizer = ?, id_placing_way = ?, id_etp = ?, end_date = ?, scoring_date = ?, bidding_date = ?, cancel = ?, date_version = ?, num_version = ?, notice_version = ?, xml = ?, print_form = ?", Prefix))
 	rest, err := stmtt.Exec(IdXml, RegistryNumber, DatePublished, Href, PurchaseObjectInfo, typeFz, IdOrganizer, IdPlacingWay, IdEtp, EndDate, ScoringDate, BiddingDate, cancelStatus, DateUpdated, Version, NoticeVersion, UrlXml, PrintForm)
 	if err != nil {
-		Logging("Ошибка чтения вставки tender", err)
+		Logging("Ошибка вставки tender", err)
 	}
 	idt, err := rest.LastInsertId()
 	idTender = int(idt)
-	fmt.Println(idTender)
-	fmt.Println(cancelStatus)
 	Addtender++
 	for _, att := range p.Attachments {
 		attachName := att.AttachName
@@ -235,8 +234,87 @@ func ParserProtocol(p Protocol) {
 		stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %sattachment SET id_tender = ?, file_name = ?, url = ?", Prefix))
 		_, err := stmt.Exec(idTender, attachName, attachUrl)
 		if err != nil {
-			Logging("Ошибка чтения вставки attachment", err)
+			Logging("Ошибка вставки attachment", err)
 		}
 	}
+	for _, lot := range p.Lots {
+		LotNumber := lot.LotNumber
+		MaxPrice := lot.StartPrice
+		//Subject := lot.LotSubject
+		Currency := p.Currency
+		idLot := 0
+		stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %slot SET id_tender = ?, lot_number = ?, max_price = ?, currency = ?", Prefix))
+		res, err := stmt.Exec(idTender, LotNumber, MaxPrice, Currency)
+		if err != nil {
+			Logging("Ошибка вставки lot", err)
+		}
+		id, _ := res.LastInsertId()
+		idLot = int(id)
+		//fmt.Println(idLot)
+		idCustomer := 0
+		if len(lot.Customers) > 0 {
+			if lot.Customers[0].FullName != "" {
+				stmt, _ := db.Prepare(fmt.Sprintf("SELECT id_customer FROM %scustomer WHERE full_name LIKE '%%'|| ? ||'%%' LIMIT 1", Prefix))
+				rows, err := stmt.Query(lot.Customers[0].FullName)
+				if err != nil {
+					Logging("Ошибка выполения запроса", err)
+				}
+				if rows.Next() {
+					err = rows.Scan(&idCustomer)
+					if err != nil {
+						Logging("Ошибка чтения результата запроса", err)
+					}
+				} else {
+					stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %scustomer SET full_name = ?, is223=1, reg_num = ?", Prefix))
+					res, err := stmt.Exec(lot.Customers[0].FullName, "00000223000000000")
+					if err != nil {
+						Logging("Ошибка вставки организатора", err)
+					}
+					id, err := res.LastInsertId()
+					idCustomer = int(id)
+				}
+			}
+		}
 
+		for _, cusR := range lot.DeliveryPlaces {
+			deliveryPlace := cusR.Address
+			deliveryTerm := cusR.Term
+			stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %scustomer_requirement SET id_lot = ?, id_customer = ?, delivery_place = ?, delivery_term = ?", Prefix))
+			_, err := stmt.Exec(idLot, idCustomer, deliveryPlace, deliveryTerm)
+			if err != nil {
+				Logging("Ошибка вставки customer_requirement", err)
+			}
+		}
+		QuantityValue := ""
+		if len(lot.DeliveryPlaces) == 1 {
+			QuantityValue = lot.DeliveryPlaces[0].Quantity
+		}
+
+		okpd2Code := lot.Okpd2Code
+		okpdName := lot.OkpdName
+		okpd2GroupCode, okpd2GroupLevel1Code := GetOkpd(okpd2Code)
+		stmtr, _ := db.Prepare(fmt.Sprintf("INSERT INTO %spurchase_object SET id_lot = ?, id_customer = ?, okpd2_code = ?, okpd2_group_code = ?, okpd2_group_level1_code = ?, okpd_name = ?, name = ?, quantity_value = ?, customer_quantity_value = ?", Prefix))
+		_, errr := stmtr.Exec(idLot, idCustomer, okpd2Code, okpd2GroupCode, okpd2GroupLevel1Code, okpdName, lot.LotSubject, QuantityValue, QuantityValue)
+		if errr != nil {
+			Logging("Ошибка вставки purchase_object", errr)
+		}
+
+	}
+
+}
+
+func GetOkpd(s string) (int, string) {
+	okpd2GroupCode := 0
+	okpd2GroupLevel1Code := ""
+	if len(s) > 1 {
+		if strings.Index(s, ".") != -1 {
+			okpd2GroupCode, _ = strconv.Atoi(s[:2])
+		}
+	}
+	if len(s) > 3 {
+		if strings.Index(s, ".") != -1 {
+			okpd2GroupLevel1Code = s[3:4]
+		}
+	}
+	return okpd2GroupCode, okpd2GroupLevel1Code
 }
