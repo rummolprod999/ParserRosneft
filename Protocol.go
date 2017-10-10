@@ -12,6 +12,7 @@ type Protocol struct {
 	ProcedureTypeName string `xml:"procedureType>title"`
 	DateEndRegistration string `xml:"dateEndRegistration"`
 	DateEndSecondPartsReview string `xml:"dateEndSecondPartsReview"`
+	Attachments []Attachment `xml:"documents>document"`
 }
 
 type FileProtocols struct {
@@ -35,4 +36,9 @@ type Organizer struct{
 	ContactEmail string `xml:"contactEmail"`
 	ContactPhone string `xml:"contactPhone"`
 	ContactPerson string `xml:"contactPerson"`
+}
+
+type Attachment struct{
+	AttachName string `xml:"filename"`
+	AttachUrl string `xml:"file"`
 }

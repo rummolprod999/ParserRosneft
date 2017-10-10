@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
+	//"golang.org/x/tools/go/gcimporter15/testdata"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -228,5 +229,14 @@ func ParserProtocol(p Protocol) {
 	fmt.Println(idTender)
 	fmt.Println(cancelStatus)
 	Addtender++
+	for _, att := range p.Attachments {
+		attachName := att.AttachName
+		attachUrl := att.AttachUrl
+		stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %sattachment SET id_tender = ?, file_name = ?, url = ?", Prefix))
+		_, err := stmt.Exec(idTender, attachName, attachUrl)
+		if err != nil {
+			Logging("Ошибка чтения вставки attachment", err)
+		}
+	}
 
 }
