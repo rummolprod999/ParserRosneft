@@ -1,5 +1,7 @@
 package main
 
+import "fmt"
+
 var FileLog Filelog
 
 const (
@@ -15,4 +17,5 @@ func main() {
 	Logging("Начало парсинга")
 	Parser()
 	Logging("Конец парсинга")
+	Logging(fmt.Sprintf("Добавили тенедеров %d", Addtender))
 }

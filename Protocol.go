@@ -8,6 +8,10 @@ type Protocol struct {
 	DateUpdated string `xml:"dateUpdated"`
 	PurchaseObjectInfo string `xml:"title"`
 	Organizer
+	ProcedureTypeId string `xml:"procedureType>id"`
+	ProcedureTypeName string `xml:"procedureType>title"`
+	DateEndRegistration string `xml:"dateEndRegistration"`
+	DateEndSecondPartsReview string `xml:"dateEndSecondPartsReview"`
 }
 
 type FileProtocols struct {

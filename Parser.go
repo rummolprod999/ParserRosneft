@@ -13,6 +13,7 @@ import (
 
 var fl FileProtocols
 var UrlXml string
+var Addtender = 0
 
 func DownLoadFile() string {
 	tNow := time.Now()
@@ -79,11 +80,11 @@ func ParserProtocol(p Protocol) {
 		DateUpdatedS = DatePublishedS
 	}
 	DateUpdatedS = DateUpdatedS[:19]
-	//DatePublished, _ := time.Parse(layout, DatePublishedS)
+	DatePublished, _ := time.Parse(layout, DatePublishedS)
 	DateUpdated, _ := time.Parse(layout, DateUpdatedS)
 
 	IdXml := p.IdProtocol
-	//Version := 0
+	Version := 0
 	Dsn := fmt.Sprintf("root:1234@/%s?charset=utf8&parseTime=true&readTimeout=60m", DbName)
 	db, err := sql.Open("mysql", Dsn)
 	defer db.Close()
@@ -124,10 +125,10 @@ func ParserProtocol(p Protocol) {
 		}
 		//fmt.Println(cancelStatus)
 	}
-	//Href := fmt.Sprintf("http://rn.tektorg.ru/ru/procurement/procedures/%s", p.IdProtocol)
-	//PurchaseObjectInfo := p.PurchaseObjectInfo
-	//NoticeVersion := ""
-	//Printform := Href
+	Href := fmt.Sprintf("http://rn.tektorg.ru/ru/procurement/procedures/%s", p.IdProtocol)
+	PurchaseObjectInfo := p.PurchaseObjectInfo
+	NoticeVersion := ""
+	PrintForm := Href
 	IdOrganizer := 0
 	OrganizerfullName := p.OrganizerfullNameU
 	if OrganizerfullName != "" {
@@ -156,7 +157,76 @@ func ParserProtocol(p Protocol) {
 			IdOrganizer = int(id)
 		}
 	}
-	fmt.Println(IdOrganizer)
+	IdPlacingWay := 0
+	PwCode := p.ProcedureTypeId
+	PwName := p.ProcedureTypeName
+	if PwCode != "" && PwName != "" {
+		stmt, _ := db.Prepare(fmt.Sprintf("SELECT id_placing_way FROM %splacing_way WHERE code = ? AND name = ? LIMIT 1", Prefix))
+		rows, err := stmt.Query(PwCode, PwName)
+		if err != nil {
+			Logging("Ошибка выполения запроса", err)
+		}
+		if rows.Next() {
+			err = rows.Scan(&IdPlacingWay)
+			if err != nil {
+				Logging("Ошибка чтения результата запроса", err)
+			}
+		} else {
+			stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %splacing_way SET code= ?, name= ?", Prefix))
+			res, err := stmt.Exec(PwCode, PwName)
+			if err != nil {
+				Logging("Ошибка чтения вставки placing way", err)
+			}
+			id, err := res.LastInsertId()
+			IdPlacingWay = int(id)
+		}
+	}
+
+	IdEtp := 0
+	etpName := "ЭТП ТЭК-Торг секция ОАО «НК «Роснефть»"
+	etpUrl := "https://rn.tektorg.ru/"
+	if etpName != "" && etpUrl != "" {
+		stmt, _ := db.Prepare(fmt.Sprintf("SELECT id_etp FROM %setp WHERE name = ? AND url = ? LIMIT 1", Prefix))
+		rows, err := stmt.Query(etpName, etpUrl)
+		if err != nil {
+			Logging("Ошибка выполения запроса", err)
+		}
+		if rows.Next() {
+			err = rows.Scan(&IdEtp)
+			if err != nil {
+				Logging("Ошибка чтения результата запроса", err)
+			}
+		} else {
+			stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %setp SET name = ?, url = ?, conf=0", Prefix))
+			res, err := stmt.Exec(etpName, etpUrl)
+			if err != nil {
+				Logging("Ошибка чтения вставки etp", err)
+			}
+			id, err := res.LastInsertId()
+			IdEtp = int(id)
+		}
+	}
+
+	var EndDate, BiddingDate, ScoringDate = time.Time{}, time.Time{}, time.Time{}
+	EndDateS := p.DateEndRegistration
+	if EndDateS != "" {
+		EndDate, _ = time.Parse(layout, EndDateS[:19])
+	}
+	ScoringDateS := p.DateEndSecondPartsReview
+	if ScoringDateS != "" {
+		ScoringDate, _ = time.Parse(layout, ScoringDateS[:19])
+	}
+	typeFz := 1
+	idTender := 0
+	stmtt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %stender SET id_region = 0, id_xml = ?, purchase_number = ?, doc_publish_date = ?, href = ?, purchase_object_info = ?, type_fz = ?, id_organizer = ?, id_placing_way = ?, id_etp = ?, end_date = ?, scoring_date = ?, bidding_date = ?, cancel = ?, date_version = ?, num_version = ?, notice_version = ?, xml = ?, print_form = ?", Prefix))
+	rest, err := stmtt.Exec(IdXml, RegistryNumber, DatePublished, Href, PurchaseObjectInfo, typeFz, IdOrganizer, IdPlacingWay, IdEtp, EndDate, ScoringDate, BiddingDate, cancelStatus, DateUpdated, Version, NoticeVersion, UrlXml, PrintForm)
+	if err != nil {
+		Logging("Ошибка чтения вставки tender", err)
+	}
+	idt, err := rest.LastInsertId()
+	idTender = int(idt)
+	fmt.Println(idTender)
 	fmt.Println(cancelStatus)
+	Addtender++
 
 }
