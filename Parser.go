@@ -7,6 +7,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"io/ioutil"
 	"net/http"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -102,13 +103,20 @@ func Parser() {
 			Logging("Новый URL", UrlXml)
 		}
 	}
+	Dsn := fmt.Sprintf("root:1234@/%s?charset=utf8&parseTime=true&readTimeout=60m", DbName)
+	db, err := sql.Open("mysql", Dsn)
+	defer db.Close()
+	db.SetMaxOpenConns(10)
+	if err != nil {
+		Logging("Ошибка подключения к БД", err)
+	}
 	for _, r := range fl.Protocols {
-		ParserProtocol(r)
-		break
+		ParserProtocol(r, db)
+		//break
 	}
 
 }
-func ParserProtocol(p Protocol) {
+func ParserProtocol(p Protocol, db *sql.DB) {
 	layout := "2006-01-02T15:04:05"
 	RegistryNumber := p.RegistryNumber
 	DatePublishedS := p.DatePublished[:19]
@@ -122,12 +130,7 @@ func ParserProtocol(p Protocol) {
 
 	IdXml := p.IdProtocol
 	Version := 0
-	Dsn := fmt.Sprintf("root:1234@/%s?charset=utf8&parseTime=true&readTimeout=60m", DbName)
-	db, err := sql.Open("mysql", Dsn)
-	defer db.Close()
-	if err != nil {
-		Logging("Ошибка подключения к БД", err)
-	}
+
 	stmt, _ := db.Prepare(fmt.Sprintf("SELECT id_tender FROM %stender WHERE id_xml = ? AND purchase_number = ? AND date_version = ?", Prefix))
 	res, err := stmt.Query(IdXml, RegistryNumber, DateUpdated)
 	if err != nil {
@@ -135,6 +138,7 @@ func ParserProtocol(p Protocol) {
 	}
 	if res.Next() {
 		Logging("Такой тендер уже есть", RegistryNumber)
+		res.Close()
 		return
 	}
 	var cancelStatus = 0
@@ -161,6 +165,7 @@ func ParserProtocol(p Protocol) {
 			}
 
 		}
+		rows.Close()
 		//fmt.Println(cancelStatus)
 	}
 	Href := fmt.Sprintf("http://rn.tektorg.ru/ru/procurement/procedures/%s", p.IdProtocol)
@@ -170,7 +175,7 @@ func ParserProtocol(p Protocol) {
 	IdOrganizer := 0
 	OrganizerfullName := p.OrganizerfullNameU
 	if OrganizerfullName != "" {
-		stmt, _ := db.Prepare(fmt.Sprintf("SELECT id_organizer FROM %sorganizer WHERE full_name LIKE '%%'|| ? ||'%%' LIMIT 1", Prefix))
+		stmt, _ := db.Prepare(fmt.Sprintf("SELECT id_organizer FROM %sorganizer WHERE full_name LIKE ? LIMIT 1", Prefix))
 		rows, err := stmt.Query(OrganizerfullName)
 		if err != nil {
 			Logging("Ошибка выполения запроса", err)
@@ -180,7 +185,9 @@ func ParserProtocol(p Protocol) {
 			if err != nil {
 				Logging("Ошибка чтения результата запроса", err)
 			}
+			rows.Close()
 		} else {
+			rows.Close()
 			OrgPostAddress := strings.TrimSpace(fmt.Sprintf("%s %s %s %s %s", p.OrganizerIndexP, p.OrganizerRegionP, p.OrganizerCityP, p.OrganizerStreetP, p.OrganizerHouseP))
 			OrgUrAddress := strings.TrimSpace(fmt.Sprintf("%s %s %s %s %s", p.OrganizerIndexU, p.OrganizerRegionU, p.OrganizerCityU, p.OrganizerStreetU, p.OrganizerHouseU))
 			ContactEmail := p.ContactEmail
@@ -194,6 +201,7 @@ func ParserProtocol(p Protocol) {
 			id, err := res.LastInsertId()
 			IdOrganizer = int(id)
 		}
+
 	}
 	IdPlacingWay := 0
 	PwCode := p.ProcedureTypeId
@@ -209,7 +217,9 @@ func ParserProtocol(p Protocol) {
 			if err != nil {
 				Logging("Ошибка чтения результата запроса", err)
 			}
+			rows.Close()
 		} else {
+			rows.Close()
 			stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %splacing_way SET code= ?, name= ?", Prefix))
 			res, err := stmt.Exec(PwCode, PwName)
 			if err != nil {
@@ -234,7 +244,9 @@ func ParserProtocol(p Protocol) {
 			if err != nil {
 				Logging("Ошибка чтения результата запроса", err)
 			}
+			rows.Close()
 		} else {
+			rows.Close()
 			stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %setp SET name = ?, url = ?, conf=0", Prefix))
 			res, err := stmt.Exec(etpName, etpUrl)
 			if err != nil {
@@ -290,7 +302,7 @@ func ParserProtocol(p Protocol) {
 		idCustomer := 0
 		if len(lot.Customers) > 0 {
 			if lot.Customers[0].FullName != "" {
-				stmt, _ := db.Prepare(fmt.Sprintf("SELECT id_customer FROM %scustomer WHERE full_name LIKE '%%'|| ? ||'%%' LIMIT 1", Prefix))
+				stmt, _ := db.Prepare(fmt.Sprintf("SELECT id_customer FROM %scustomer WHERE full_name LIKE ? LIMIT 1", Prefix))
 				rows, err := stmt.Query(lot.Customers[0].FullName)
 				if err != nil {
 					Logging("Ошибка выполения запроса", err)
@@ -300,9 +312,15 @@ func ParserProtocol(p Protocol) {
 					if err != nil {
 						Logging("Ошибка чтения результата запроса", err)
 					}
+					rows.Close()
 				} else {
+					rows.Close()
+					out, err := exec.Command("uuidgen").Output()
+					if err != nil {
+						Logging("Ошибка генерации UUID", err)
+					}
 					stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %scustomer SET full_name = ?, is223=1, reg_num = ?", Prefix))
-					res, err := stmt.Exec(lot.Customers[0].FullName, "00000223000000000")
+					res, err := stmt.Exec(lot.Customers[0].FullName, out)
 					if err != nil {
 						Logging("Ошибка вставки организатора", err)
 					}
@@ -360,7 +378,7 @@ func TenderKwords(db *sql.DB, idTender int) {
 			resString = fmt.Sprintf("%s %s ", resString, okpdName.String)
 		}
 	}
-
+	rows.Close()
 	stmt1, _ := db.Prepare(fmt.Sprintf("SELECT DISTINCT file_name FROM %sattachment WHERE id_tender = ?", Prefix))
 	rows1, err := stmt1.Query(idTender)
 	if err != nil {
@@ -376,7 +394,7 @@ func TenderKwords(db *sql.DB, idTender int) {
 			resString = fmt.Sprintf("%s %s ", resString, attName.String)
 		}
 	}
-
+	rows1.Close()
 	idOrg := 0
 	stmt2, _ := db.Prepare(fmt.Sprintf("SELECT purchase_object_info, id_organizer FROM %stender WHERE id_tender = ?", Prefix))
 	rows2, err := stmt2.Query(idTender)
@@ -398,7 +416,7 @@ func TenderKwords(db *sql.DB, idTender int) {
 		}
 
 	}
-
+	rows2.Close()
 	if idOrg != 0 {
 		stmt3, _ := db.Prepare(fmt.Sprintf("SELECT full_name, inn FROM %sorganizer WHERE id_organizer = ?", Prefix))
 		rows3, err := stmt3.Query(idOrg)
@@ -421,6 +439,7 @@ func TenderKwords(db *sql.DB, idTender int) {
 			}
 
 		}
+		rows3.Close()
 	}
 	stmt4, _ := db.Prepare(fmt.Sprintf("SELECT DISTINCT cus.inn, cus.full_name FROM %scustomer AS cus LEFT JOIN %spurchase_object AS po ON cus.id_customer = po.id_customer LEFT JOIN %slot AS l ON l.id_lot = po.id_lot WHERE l.id_tender = ?", Prefix, Prefix, Prefix))
 	rows4, err := stmt4.Query(idTender)
@@ -442,6 +461,7 @@ func TenderKwords(db *sql.DB, idTender int) {
 			resString = fmt.Sprintf("%s %s ", resString, fullNameC.String)
 		}
 	}
+	rows4.Close()
 	re := regexp.MustCompile(`\s+`)
 	resString = re.ReplaceAllString(resString, " ")
 	stmtr, _ := db.Prepare(fmt.Sprintf("UPDATE %stender SET tender_kwords = ? WHERE id_tender = ?", Prefix))
