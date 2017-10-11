@@ -10,7 +10,7 @@ var FileLog Filelog
 const (
 	DbName = "tenders_test"
 	Prefix = ""
-	UserDb = "root"
+	UserDb = "parser"
 	PasswordDb = "Dft56Point"
 )
 
