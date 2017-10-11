@@ -11,17 +11,42 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"regexp"
 )
 
 var fl FileProtocols
 var UrlXml string
 var Addtender = 0
+var HasMoreProcedures = 1
 
 func DownLoadFile() string {
 	tNow := time.Now()
 	tMinus3H := tNow.Add(time.Hour * -4)
 	UrlXml = fmt.Sprintf("http://ws-rn.tektorg.ru/export/procedures?start_date=%v.000000%%2b03:00&end_date=%v.000000%%2b03:00", tMinus3H.Format("2006-01-02T15:04:05"), tNow.Format("2006-01-02T15:04:05"))
 	//fmt.Println(s)
+	count := 0
+	for {
+		if count > 50 {
+			Logging(fmt.Sprintf("Не скачали файл за %d попыток", count))
+			return ""
+		}
+		resp, err := http.Get(UrlXml)
+		if err != nil {
+			Logging("Ошибка скачивания", UrlXml, err)
+			count++
+			time.Sleep(time.Second * 5)
+			continue
+		}
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			count++
+			continue
+		}
+		resp.Body.Close()
+		return string(body)
+	}
+}
+func DownLoadFileDay() string {
 	count := 0
 	for {
 		if count > 50 {
@@ -54,8 +79,8 @@ func DownLoadFileTest() string {
 }
 
 func Parser() {
-	//s := DownLoadFile()
-	s := DownLoadFileTest()
+	s := DownLoadFileDay()
+	//s := DownLoadFileTest()
 	if s == "" {
 		Logging("Получили пустую строку")
 		return
@@ -64,8 +89,19 @@ func Parser() {
 		Logging("Ошибка при парсинге строки", err)
 		return
 	}
+	HasMoreProcedures = fl.HasMoreProcedures
 	if fl.HasMoreProcedures == 1 {
 		Logging("Слишком много процедур в запросе")
+		if len(fl.Protocols) > 0 {
+			DatePublishedS := fl.Protocols[len(fl.Protocols)-1].DatePublished[:19]
+			DateUpdatedS := fl.Protocols[len(fl.Protocols)-1].DateUpdated
+			if DateUpdatedS == "" {
+				DateUpdatedS = DatePublishedS
+			}
+			DateUpdatedS = DateUpdatedS[:19]
+			UrlXml = fmt.Sprintf("http://ws-rn.tektorg.ru/export/procedures?start_date=%s.000000", DateUpdatedS)
+			Logging("Новый URL", UrlXml)
+		}
 	}
 	for _, r := range fl.Protocols {
 		ParserProtocol(r)
@@ -104,7 +140,7 @@ func ParserProtocol(p Protocol) {
 	}
 	var cancelStatus = 0
 	if RegistryNumber != "" {
-		stmt, err := db.Prepare(fmt.Sprintf("SELECT id_tender, date_version FROM %stender WHERE purchase_number = ?", Prefix))
+		stmt, err := db.Prepare(fmt.Sprintf("SELECT id_tender, date_version FROM %stender WHERE purchase_number = ? AND cancel=0", Prefix))
 		rows, err := stmt.Query(RegistryNumber)
 		if err != nil {
 			Logging("Ошибка выполения запроса", err)
@@ -117,11 +153,12 @@ func ParserProtocol(p Protocol) {
 				Logging("Ошибка чтения результата запроса", err)
 			}
 			//fmt.Println(DateUpdated.Sub(dateVersion))
-			if DateUpdated.Sub(dateVersion) <= 0 {
-				cancelStatus = 1
-			} else {
+			if dateVersion.Sub(DateUpdated) <= 0 {
 				stmtupd, _ := db.Prepare(fmt.Sprintf("UPDATE %stender SET cancel=1 WHERE id_tender = ?", Prefix))
 				_, err = stmtupd.Exec(idTender)
+
+			} else {
+				cancelStatus = 1
 			}
 
 		}
@@ -300,9 +337,121 @@ func ParserProtocol(p Protocol) {
 		}
 
 	}
+	TenderKwords(db, idTender)
 
 }
+func TenderKwords(db *sql.DB, idTender int) {
+	resString := ""
+	stmt, _ := db.Prepare(fmt.Sprintf("SELECT DISTINCT po.name, po.okpd_name FROM %spurchase_object AS po LEFT JOIN %slot AS l ON l.id_lot = po.id_lot WHERE l.id_tender = ?", Prefix, Prefix))
+	rows, err := stmt.Query(idTender)
+	if err != nil {
+		Logging("Ошибка выполения запроса", err)
+	}
+	for rows.Next() {
+		var name sql.NullString
+		var okpdName sql.NullString
+		err = rows.Scan(&name, &okpdName)
+		if err != nil {
+			Logging("Ошибка чтения результата запроса", err)
+		}
+		if name.Valid {
+			resString = fmt.Sprintf("%s %s ", resString, name.String)
+		}
+		if okpdName.Valid {
+			resString = fmt.Sprintf("%s %s ", resString, okpdName.String)
+		}
+	}
 
+	stmt1, _ := db.Prepare(fmt.Sprintf("SELECT DISTINCT file_name FROM %sattachment WHERE id_tender = ?", Prefix))
+	rows1, err := stmt1.Query(idTender)
+	if err != nil {
+		Logging("Ошибка выполения запроса", err)
+	}
+	for rows1.Next() {
+		var attName sql.NullString
+		err = rows1.Scan(&attName)
+		if err != nil {
+			Logging("Ошибка чтения результата запроса", err)
+		}
+		if attName.Valid {
+			resString = fmt.Sprintf("%s %s ", resString, attName.String)
+		}
+	}
+
+	idOrg := 0
+	stmt2, _ := db.Prepare(fmt.Sprintf("SELECT purchase_object_info, id_organizer FROM %stender WHERE id_tender = ?", Prefix))
+	rows2, err := stmt2.Query(idTender)
+	if err != nil {
+		Logging("Ошибка выполения запроса", err)
+	}
+	for rows2.Next() {
+		var idOrgNull sql.NullInt64
+		var purOb sql.NullString
+		err = rows2.Scan(&purOb, &idOrgNull)
+		if err != nil {
+			Logging("Ошибка чтения результата запроса", err)
+		}
+		if idOrgNull.Valid {
+			idOrg = int(idOrgNull.Int64)
+		}
+		if purOb.Valid {
+			resString = fmt.Sprintf("%s %s ", resString, purOb.String)
+		}
+
+	}
+
+	if idOrg != 0 {
+		stmt3, _ := db.Prepare(fmt.Sprintf("SELECT full_name, inn FROM %sorganizer WHERE id_organizer = ?", Prefix))
+		rows3, err := stmt3.Query(idOrg)
+		if err != nil {
+			Logging("Ошибка выполения запроса", err)
+		}
+		for rows3.Next() {
+			var innOrg sql.NullString
+			var nameOrg sql.NullString
+			err = rows3.Scan(&nameOrg, &innOrg)
+			if err != nil {
+				Logging("Ошибка чтения результата запроса", err)
+			}
+			if innOrg.Valid {
+
+				resString = fmt.Sprintf("%s %s ", resString, innOrg.String)
+			}
+			if nameOrg.Valid {
+				resString = fmt.Sprintf("%s %s ", resString, nameOrg.String)
+			}
+
+		}
+	}
+	stmt4, _ := db.Prepare(fmt.Sprintf("SELECT DISTINCT cus.inn, cus.full_name FROM %scustomer AS cus LEFT JOIN %spurchase_object AS po ON cus.id_customer = po.id_customer LEFT JOIN %slot AS l ON l.id_lot = po.id_lot WHERE l.id_tender = ?", Prefix, Prefix, Prefix))
+	rows4, err := stmt4.Query(idTender)
+	if err != nil {
+		Logging("Ошибка выполения запроса", err)
+	}
+	for rows4.Next() {
+		var innC sql.NullString
+		var fullNameC sql.NullString
+		err = rows4.Scan(&innC, &fullNameC)
+		if err != nil {
+			Logging("Ошибка чтения результата запроса", err)
+		}
+		if innC.Valid {
+
+			resString = fmt.Sprintf("%s %s ", resString, innC.String)
+		}
+		if fullNameC.Valid {
+			resString = fmt.Sprintf("%s %s ", resString, fullNameC.String)
+		}
+	}
+	re := regexp.MustCompile(`\s+`)
+	resString = re.ReplaceAllString(resString, " ")
+	fmt.Println(resString)
+	stmtr, _ := db.Prepare(fmt.Sprintf("UPDATE %stender SET tender_kwords = ? WHERE id_tender = ?", Prefix))
+	_, errr := stmtr.Exec(resString, idTender)
+	if errr != nil {
+		Logging("Ошибка вставки TenderKwords", errr)
+	}
+}
 func GetOkpd(s string) (int, string) {
 	okpd2GroupCode := 0
 	okpd2GroupLevel1Code := ""

@@ -20,6 +20,7 @@ func Logging(args ...interface{}) {
 
 		fmt.Fprintf(file, " %v", v)
 	}
+	fmt.Fprintf(file, " %s", UrlXml)
 	fmt.Fprintln(file, "")
 
 }
