@@ -5,7 +5,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
-	//"golang.org/x/tools/go/gcimporter15/testdata"
 	"io/ioutil"
 	"net/http"
 	"regexp"
