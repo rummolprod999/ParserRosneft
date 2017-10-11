@@ -111,12 +111,16 @@ func Parser() {
 		Logging("Ошибка подключения к БД", err)
 	}
 	for _, r := range fl.Protocols {
-		ParserProtocol(r, db)
+		e := ParserProtocol(r, db)
+		if e != nil {
+			Logging("Ошибка парсера в протоколе", e)
+			continue
+		}
 		//break
 	}
 
 }
-func ParserProtocol(p Protocol, db *sql.DB) {
+func ParserProtocol(p Protocol, db *sql.DB) error {
 	layout := "2006-01-02T15:04:05"
 	RegistryNumber := p.RegistryNumber
 	DatePublishedS := p.DatePublished[:19]
@@ -135,11 +139,12 @@ func ParserProtocol(p Protocol, db *sql.DB) {
 	res, err := stmt.Query(IdXml, RegistryNumber, DateUpdated)
 	if err != nil {
 		Logging("Ошибка выполения запроса", err)
+		return err
 	}
 	if res.Next() {
-		Logging("Такой тендер уже есть", RegistryNumber)
+		//Logging("Такой тендер уже есть", RegistryNumber)
 		res.Close()
-		return
+		return nil
 	}
 	var cancelStatus = 0
 	if RegistryNumber != "" {
@@ -147,6 +152,7 @@ func ParserProtocol(p Protocol, db *sql.DB) {
 		rows, err := stmt.Query(RegistryNumber)
 		if err != nil {
 			Logging("Ошибка выполения запроса", err)
+			return err
 		}
 		for rows.Next() {
 			var idTender int
@@ -154,6 +160,7 @@ func ParserProtocol(p Protocol, db *sql.DB) {
 			err = rows.Scan(&idTender, &dateVersion)
 			if err != nil {
 				Logging("Ошибка чтения результата запроса", err)
+				return err
 			}
 			//fmt.Println(DateUpdated.Sub(dateVersion))
 			if dateVersion.Sub(DateUpdated) <= 0 {
@@ -179,11 +186,13 @@ func ParserProtocol(p Protocol, db *sql.DB) {
 		rows, err := stmt.Query(OrganizerfullName)
 		if err != nil {
 			Logging("Ошибка выполения запроса", err)
+			return err
 		}
 		if rows.Next() {
 			err = rows.Scan(&IdOrganizer)
 			if err != nil {
 				Logging("Ошибка чтения результата запроса", err)
+				return err
 			}
 			rows.Close()
 		} else {
@@ -197,6 +206,7 @@ func ParserProtocol(p Protocol, db *sql.DB) {
 			res, err := stmt.Exec(OrganizerfullName, OrgPostAddress, OrgUrAddress, ContactEmail, ContactPhone, ContactPerson)
 			if err != nil {
 				Logging("Ошибка вставки организатора", err)
+				return err
 			}
 			id, err := res.LastInsertId()
 			IdOrganizer = int(id)
@@ -211,11 +221,13 @@ func ParserProtocol(p Protocol, db *sql.DB) {
 		rows, err := stmt.Query(PwCode, PwName)
 		if err != nil {
 			Logging("Ошибка выполения запроса", err)
+			return err
 		}
 		if rows.Next() {
 			err = rows.Scan(&IdPlacingWay)
 			if err != nil {
 				Logging("Ошибка чтения результата запроса", err)
+				return err
 			}
 			rows.Close()
 		} else {
@@ -224,6 +236,7 @@ func ParserProtocol(p Protocol, db *sql.DB) {
 			res, err := stmt.Exec(PwCode, PwName)
 			if err != nil {
 				Logging("Ошибка вставки placing way", err)
+				return err
 			}
 			id, err := res.LastInsertId()
 			IdPlacingWay = int(id)
@@ -238,11 +251,13 @@ func ParserProtocol(p Protocol, db *sql.DB) {
 		rows, err := stmt.Query(etpName, etpUrl)
 		if err != nil {
 			Logging("Ошибка выполения запроса", err)
+			return err
 		}
 		if rows.Next() {
 			err = rows.Scan(&IdEtp)
 			if err != nil {
 				Logging("Ошибка чтения результата запроса", err)
+				return err
 			}
 			rows.Close()
 		} else {
@@ -251,6 +266,7 @@ func ParserProtocol(p Protocol, db *sql.DB) {
 			res, err := stmt.Exec(etpName, etpUrl)
 			if err != nil {
 				Logging("Ошибка вставки etp", err)
+				return err
 			}
 			id, err := res.LastInsertId()
 			IdEtp = int(id)
@@ -272,6 +288,7 @@ func ParserProtocol(p Protocol, db *sql.DB) {
 	rest, err := stmtt.Exec(IdXml, RegistryNumber, DatePublished, Href, PurchaseObjectInfo, typeFz, IdOrganizer, IdPlacingWay, IdEtp, EndDate, ScoringDate, BiddingDate, cancelStatus, DateUpdated, Version, NoticeVersion, UrlXml, PrintForm)
 	if err != nil {
 		Logging("Ошибка вставки tender", err)
+		return err
 	}
 	idt, err := rest.LastInsertId()
 	idTender = int(idt)
@@ -283,6 +300,7 @@ func ParserProtocol(p Protocol, db *sql.DB) {
 		_, err := stmt.Exec(idTender, attachName, attachUrl)
 		if err != nil {
 			Logging("Ошибка вставки attachment", err)
+			return err
 		}
 	}
 	for _, lot := range p.Lots {
@@ -295,6 +313,7 @@ func ParserProtocol(p Protocol, db *sql.DB) {
 		res, err := stmt.Exec(idTender, LotNumber, MaxPrice, Currency)
 		if err != nil {
 			Logging("Ошибка вставки lot", err)
+			return err
 		}
 		id, _ := res.LastInsertId()
 		idLot = int(id)
@@ -306,11 +325,13 @@ func ParserProtocol(p Protocol, db *sql.DB) {
 				rows, err := stmt.Query(lot.Customers[0].FullName)
 				if err != nil {
 					Logging("Ошибка выполения запроса", err)
+					return err
 				}
 				if rows.Next() {
 					err = rows.Scan(&idCustomer)
 					if err != nil {
 						Logging("Ошибка чтения результата запроса", err)
+						return err
 					}
 					rows.Close()
 				} else {
@@ -318,11 +339,13 @@ func ParserProtocol(p Protocol, db *sql.DB) {
 					out, err := exec.Command("uuidgen").Output()
 					if err != nil {
 						Logging("Ошибка генерации UUID", err)
+						return err
 					}
 					stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %scustomer SET full_name = ?, is223=1, reg_num = ?", Prefix))
 					res, err := stmt.Exec(lot.Customers[0].FullName, out)
 					if err != nil {
 						Logging("Ошибка вставки организатора", err)
+						return err
 					}
 					id, err := res.LastInsertId()
 					idCustomer = int(id)
@@ -337,6 +360,8 @@ func ParserProtocol(p Protocol, db *sql.DB) {
 			_, err := stmt.Exec(idLot, idCustomer, deliveryPlace, deliveryTerm)
 			if err != nil {
 				Logging("Ошибка вставки customer_requirement", err)
+				return err
+
 			}
 		}
 		QuantityValue := ""
@@ -351,18 +376,24 @@ func ParserProtocol(p Protocol, db *sql.DB) {
 		_, errr := stmtr.Exec(idLot, idCustomer, okpd2Code, okpd2GroupCode, okpd2GroupLevel1Code, okpdName, lot.LotSubject, QuantityValue, QuantityValue)
 		if errr != nil {
 			Logging("Ошибка вставки purchase_object", errr)
+			return err
 		}
 
 	}
-	TenderKwords(db, idTender)
+	e := TenderKwords(db, idTender)
+	if e != nil {
+		Logging("Ошибка обработки TenderKwords", e)
+	}
+	return nil
 
 }
-func TenderKwords(db *sql.DB, idTender int) {
+func TenderKwords(db *sql.DB, idTender int) error {
 	resString := ""
 	stmt, _ := db.Prepare(fmt.Sprintf("SELECT DISTINCT po.name, po.okpd_name FROM %spurchase_object AS po LEFT JOIN %slot AS l ON l.id_lot = po.id_lot WHERE l.id_tender = ?", Prefix, Prefix))
 	rows, err := stmt.Query(idTender)
 	if err != nil {
 		Logging("Ошибка выполения запроса", err)
+		return err
 	}
 	for rows.Next() {
 		var name sql.NullString
@@ -370,6 +401,7 @@ func TenderKwords(db *sql.DB, idTender int) {
 		err = rows.Scan(&name, &okpdName)
 		if err != nil {
 			Logging("Ошибка чтения результата запроса", err)
+			return err
 		}
 		if name.Valid {
 			resString = fmt.Sprintf("%s %s ", resString, name.String)
@@ -383,12 +415,14 @@ func TenderKwords(db *sql.DB, idTender int) {
 	rows1, err := stmt1.Query(idTender)
 	if err != nil {
 		Logging("Ошибка выполения запроса", err)
+		return err
 	}
 	for rows1.Next() {
 		var attName sql.NullString
 		err = rows1.Scan(&attName)
 		if err != nil {
 			Logging("Ошибка чтения результата запроса", err)
+			return err
 		}
 		if attName.Valid {
 			resString = fmt.Sprintf("%s %s ", resString, attName.String)
@@ -400,6 +434,7 @@ func TenderKwords(db *sql.DB, idTender int) {
 	rows2, err := stmt2.Query(idTender)
 	if err != nil {
 		Logging("Ошибка выполения запроса", err)
+		return err
 	}
 	for rows2.Next() {
 		var idOrgNull sql.NullInt64
@@ -407,6 +442,7 @@ func TenderKwords(db *sql.DB, idTender int) {
 		err = rows2.Scan(&purOb, &idOrgNull)
 		if err != nil {
 			Logging("Ошибка чтения результата запроса", err)
+			return err
 		}
 		if idOrgNull.Valid {
 			idOrg = int(idOrgNull.Int64)
@@ -422,6 +458,7 @@ func TenderKwords(db *sql.DB, idTender int) {
 		rows3, err := stmt3.Query(idOrg)
 		if err != nil {
 			Logging("Ошибка выполения запроса", err)
+			return err
 		}
 		for rows3.Next() {
 			var innOrg sql.NullString
@@ -429,6 +466,7 @@ func TenderKwords(db *sql.DB, idTender int) {
 			err = rows3.Scan(&nameOrg, &innOrg)
 			if err != nil {
 				Logging("Ошибка чтения результата запроса", err)
+				return err
 			}
 			if innOrg.Valid {
 
@@ -445,6 +483,7 @@ func TenderKwords(db *sql.DB, idTender int) {
 	rows4, err := stmt4.Query(idTender)
 	if err != nil {
 		Logging("Ошибка выполения запроса", err)
+		return err
 	}
 	for rows4.Next() {
 		var innC sql.NullString
@@ -452,6 +491,7 @@ func TenderKwords(db *sql.DB, idTender int) {
 		err = rows4.Scan(&innC, &fullNameC)
 		if err != nil {
 			Logging("Ошибка чтения результата запроса", err)
+			return err
 		}
 		if innC.Valid {
 
@@ -468,7 +508,9 @@ func TenderKwords(db *sql.DB, idTender int) {
 	_, errr := stmtr.Exec(resString, idTender)
 	if errr != nil {
 		Logging("Ошибка вставки TenderKwords", errr)
+		return err
 	}
+	return nil
 }
 func GetOkpd(s string) (int, string) {
 	okpd2GroupCode := 0

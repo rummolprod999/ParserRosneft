@@ -21,10 +21,13 @@ func init() {
 
 func main() {
 	Logging("Начало парсинга")
+	count := 0
 	for {
-		if HasMoreProcedures == 0 {
+		if HasMoreProcedures == 0 || count > 20{
 			break
 		}
+		count++
+		Logging("")
 		Parser()
 	}
 	//Parser()

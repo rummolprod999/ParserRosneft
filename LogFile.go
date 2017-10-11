@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -26,7 +27,9 @@ func Logging(args ...interface{}) {
 }
 
 func CreateLogFile() {
-	dirlog := "./LogRosneft"
+	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+	fmt.Println()
+	dirlog := fmt.Sprintf("%s/%s", dir, "LogRosneft")
 	if _, err := os.Stat(dirlog); os.IsNotExist(err) {
 		err := os.MkdirAll(dirlog, 0711)
 
