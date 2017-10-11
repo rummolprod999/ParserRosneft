@@ -21,8 +21,8 @@ func init() {
 
 func main() {
 	Logging("Начало парсинга")
-	for ;;{
-		if HasMoreProcedures == 0{
+	for {
+		if HasMoreProcedures == 0 {
 			break
 		}
 		Parser()

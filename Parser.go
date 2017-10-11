@@ -8,10 +8,10 @@ import (
 	//"golang.org/x/tools/go/gcimporter15/testdata"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
-	"regexp"
 )
 
 var fl FileProtocols
@@ -445,7 +445,6 @@ func TenderKwords(db *sql.DB, idTender int) {
 	}
 	re := regexp.MustCompile(`\s+`)
 	resString = re.ReplaceAllString(resString, " ")
-	fmt.Println(resString)
 	stmtr, _ := db.Prepare(fmt.Sprintf("UPDATE %stender SET tender_kwords = ? WHERE id_tender = ?", Prefix))
 	_, errr := stmtr.Exec(resString, idTender)
 	if errr != nil {
