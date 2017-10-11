@@ -8,7 +8,7 @@ import (
 var FileLog Filelog
 
 const (
-	DbName = "tender"
+	DbName = "tenders_test"
 	Prefix = ""
 )
 

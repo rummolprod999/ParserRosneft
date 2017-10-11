@@ -103,7 +103,7 @@ func Parser() {
 			Logging("Новый URL", UrlXml)
 		}
 	}
-	Dsn := fmt.Sprintf("root:1234@/%s?charset=utf8&parseTime=true&readTimeout=60m", DbName)
+	Dsn := fmt.Sprintf("root:Dft56Point@/%s?charset=utf8&parseTime=true&readTimeout=60m", DbName)
 	db, err := sql.Open("mysql", Dsn)
 	defer db.Close()
 	db.SetMaxOpenConns(10)
