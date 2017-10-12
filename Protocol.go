@@ -52,6 +52,7 @@ type Lot struct {
 	OkpdName       string          `xml:"nomenclature2>item>name"`
 	Customers      []Customer      `xml:"customers>customer"`
 	DeliveryPlaces []DeliveryPlace `xml:"deliveryPlaces>deliveryPlace"`
+	AttachmentsLot []AttachmentLot `xml:"documents>document"`
 }
 
 type Customer struct {
@@ -62,4 +63,9 @@ type DeliveryPlace struct {
 	Quantity string `xml:"quantity"`
 	Term     string `xml:"term"`
 	Address  string `xml:"address"`
+}
+
+type AttachmentLot struct {
+	AttachName string `xml:"filename"`
+	AttachUrl  string `xml:"file"`
 }

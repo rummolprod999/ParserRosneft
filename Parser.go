@@ -317,6 +317,16 @@ func ParserProtocol(p Protocol, db *sql.DB) error {
 		}
 		id, _ := res.LastInsertId()
 		idLot = int(id)
+		for _, attL := range lot.AttachmentsLot {
+			attachName := attL.AttachName
+			attachUrl := attL.AttachUrl
+			stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %sattachment SET id_tender = ?, file_name = ?, url = ?", Prefix))
+			_, err := stmt.Exec(idTender, attachName, attachUrl)
+			if err != nil {
+				Logging("Ошибка вставки attachmentLot", err)
+				return err
+			}
+		}
 		//fmt.Println(idLot)
 		idCustomer := 0
 		if len(lot.Customers) > 0 {
@@ -383,6 +393,11 @@ func ParserProtocol(p Protocol, db *sql.DB) error {
 	e := TenderKwords(db, idTender)
 	if e != nil {
 		Logging("Ошибка обработки TenderKwords", e)
+	}
+
+	e1 := AddVerNumber(db, RegistryNumber)
+	if e1 != nil {
+		Logging("Ошибка обработки AddVerNumber", e1)
 	}
 	return nil
 
@@ -518,6 +533,8 @@ func GetOkpd(s string) (int, string) {
 	if len(s) > 1 {
 		if strings.Index(s, ".") != -1 {
 			okpd2GroupCode, _ = strconv.Atoi(s[:2])
+		} else {
+			okpd2GroupCode, _ = strconv.Atoi(s[:2])
 		}
 	}
 	if len(s) > 3 {
@@ -526,4 +543,36 @@ func GetOkpd(s string) (int, string) {
 		}
 	}
 	return okpd2GroupCode, okpd2GroupLevel1Code
+}
+
+func AddVerNumber(db *sql.DB, RegistryNumber string) error {
+	verNum := 1
+	mapTenders := make(map[int]int)
+	stmt, _ := db.Prepare(fmt.Sprintf("SELECT id_tender FROM %stender WHERE purchase_number = ? ORDER BY UNIX_TIMESTAMP(date_version) ASC", Prefix))
+	rows, err := stmt.Query(RegistryNumber)
+	if err != nil {
+		Logging("Ошибка выполения запроса", err)
+		return err
+	}
+	for rows.Next() {
+		var rNum int
+		err = rows.Scan(&rNum)
+		if err != nil {
+			Logging("Ошибка чтения результата запроса", err)
+			return err
+		}
+		mapTenders[verNum] = rNum
+		verNum++
+	}
+	rows.Close()
+	for vn, idt := range mapTenders {
+		stmtr, _ := db.Prepare(fmt.Sprintf("UPDATE %stender SET num_version = ? WHERE id_tender = ?", Prefix))
+		_, errr := stmtr.Exec(vn, idt)
+		if errr != nil {
+			Logging("Ошибка вставки NumVersion", errr)
+			return err
+		}
+	}
+
+	return nil
 }
