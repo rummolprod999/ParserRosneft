@@ -103,15 +103,9 @@ func Parser() {
 			Logging("Новый URL", UrlXml)
 		}
 	}
-	Dsn := fmt.Sprintf("%s:%s@/%s?charset=utf8&parseTime=true&readTimeout=60m", UserDb, PasswordDb, DbName)
-	db, err := sql.Open("mysql", Dsn)
-	defer db.Close()
-	db.SetMaxOpenConns(10)
-	if err != nil {
-		Logging("Ошибка подключения к БД", err)
-	}
+
 	for _, r := range fl.Protocols {
-		e := ParserProtocol(r, db)
+		e := ParserProtocol(r)
 		if e != nil {
 			Logging("Ошибка парсера в протоколе", e)
 			continue
@@ -120,7 +114,15 @@ func Parser() {
 	}
 
 }
-func ParserProtocol(p Protocol, db *sql.DB) error {
+func ParserProtocol(p Protocol) error {
+	time.Sleep(time.Second * 30)
+	Dsn := fmt.Sprintf("%s:%s@/%s?charset=utf8&parseTime=true&readTimeout=60m&maxAllowedPacket=0&timeout=60m&writeTimeout=60m", UserDb, PasswordDb, DbName)
+	db, err := sql.Open("mysql", Dsn)
+	defer db.Close()
+	db.SetMaxOpenConns(1)
+	if err != nil {
+		Logging("Ошибка подключения к БД", err)
+	}
 	layout := "2006-01-02T15:04:05"
 	RegistryNumber := p.RegistryNumber
 	DatePublishedS := p.DatePublished[:19]
