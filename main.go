@@ -12,8 +12,8 @@ var FileLog Filelog
 const (
 	DbName     = "tender"
 	Prefix     = ""
-	UserDb     = "root"
-	PasswordDb = "1234"
+	UserDb     = "parser"
+	PasswordDb = "Dft56Point"
 )
 
 func init() {
