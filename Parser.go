@@ -49,6 +49,7 @@ func DownLoadFile() string {
 func DownLoadFileDay() string {
 	count := 0
 	for {
+		//fmt.Println("Start download file")
 		if count > 50 {
 			Logging(fmt.Sprintf("Не скачали файл за %d попыток", count))
 			return ""
@@ -66,6 +67,7 @@ func DownLoadFileDay() string {
 			continue
 		}
 		resp.Body.Close()
+		//fmt.Println("End download file")
 		return string(body)
 	}
 }
@@ -118,7 +120,7 @@ func ParserProtocol(p Protocol) error {
 	Dsn := fmt.Sprintf("%s:%s@/%s?charset=utf8&parseTime=true&readTimeout=60m&maxAllowedPacket=0&timeout=60m&writeTimeout=60m&autocommit=true", UserDb, PasswordDb, DbName)
 	db, err := sql.Open("mysql", Dsn)
 	defer db.Close()
-	db.SetMaxOpenConns(1)
+	//db.SetMaxOpenConns(2)
 	if err != nil {
 		Logging("Ошибка подключения к БД", err)
 	}
@@ -147,6 +149,7 @@ func ParserProtocol(p Protocol) error {
 		res.Close()
 		return nil
 	}
+	res.Close()
 	var cancelStatus = 0
 	if RegistryNumber != "" {
 		stmt, err := db.Prepare(fmt.Sprintf("SELECT id_tender, date_version FROM %stender WHERE purchase_number = ? AND cancel=0", Prefix))
