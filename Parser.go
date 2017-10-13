@@ -115,7 +115,6 @@ func Parser() {
 
 }
 func ParserProtocol(p Protocol) error {
-	time.Sleep(time.Second * 30)
 	Dsn := fmt.Sprintf("%s:%s@/%s?charset=utf8&parseTime=true&readTimeout=60m&maxAllowedPacket=0&timeout=60m&writeTimeout=60m", UserDb, PasswordDb, DbName)
 	db, err := sql.Open("mysql", Dsn)
 	defer db.Close()
