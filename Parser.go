@@ -105,9 +105,16 @@ func Parser() {
 			Logging("Новый URL", UrlXml)
 		}
 	}
-
+	Dsn := fmt.Sprintf("%s:%s@/%s?charset=utf8&parseTime=true&readTimeout=60m&maxAllowedPacket=0&timeout=60m&writeTimeout=60m&autocommit=true", UserDb, PasswordDb, DbName)
+	db, err := sql.Open("mysql", Dsn)
+	defer db.Close()
+	//db.SetMaxOpenConns(2)
+	db.SetConnMaxLifetime(time.Second * 3600)
+	if err != nil {
+		Logging("Ошибка подключения к БД", err)
+	}
 	for _, r := range fl.Protocols {
-		e := ParserProtocol(r)
+		e := ParserProtocol(r, db)
 		if e != nil {
 			Logging("Ошибка парсера в протоколе", e)
 			continue
@@ -116,14 +123,8 @@ func Parser() {
 	}
 
 }
-func ParserProtocol(p Protocol) error {
-	Dsn := fmt.Sprintf("%s:%s@/%s?charset=utf8&parseTime=true&readTimeout=60m&maxAllowedPacket=0&timeout=60m&writeTimeout=60m&autocommit=true", UserDb, PasswordDb, DbName)
-	db, err := sql.Open("mysql", Dsn)
-	defer db.Close()
-	//db.SetMaxOpenConns(2)
-	if err != nil {
-		Logging("Ошибка подключения к БД", err)
-	}
+func ParserProtocol(p Protocol, db *sql.DB) error {
+
 	layout := "2006-01-02T15:04:05"
 	RegistryNumber := p.RegistryNumber
 	DatePublishedS := p.DatePublished[:19]
@@ -140,6 +141,7 @@ func ParserProtocol(p Protocol) error {
 
 	stmt, _ := db.Prepare(fmt.Sprintf("SELECT id_tender FROM %stender WHERE id_xml = ? AND purchase_number = ? AND date_version = ?", Prefix))
 	res, err := stmt.Query(IdXml, RegistryNumber, DateUpdated)
+	stmt.Close()
 	if err != nil {
 		Logging("Ошибка выполения запроса", err)
 		return err
@@ -154,6 +156,7 @@ func ParserProtocol(p Protocol) error {
 	if RegistryNumber != "" {
 		stmt, err := db.Prepare(fmt.Sprintf("SELECT id_tender, date_version FROM %stender WHERE purchase_number = ? AND cancel=0", Prefix))
 		rows, err := stmt.Query(RegistryNumber)
+		stmt.Close()
 		if err != nil {
 			Logging("Ошибка выполения запроса", err)
 			return err
@@ -170,6 +173,7 @@ func ParserProtocol(p Protocol) error {
 			if dateVersion.Sub(DateUpdated) <= 0 {
 				stmtupd, _ := db.Prepare(fmt.Sprintf("UPDATE %stender SET cancel=1 WHERE id_tender = ?", Prefix))
 				_, err = stmtupd.Exec(idTender)
+				stmtupd.Close()
 
 			} else {
 				cancelStatus = 1
@@ -188,6 +192,7 @@ func ParserProtocol(p Protocol) error {
 	if OrganizerfullName != "" {
 		stmt, _ := db.Prepare(fmt.Sprintf("SELECT id_organizer FROM %sorganizer WHERE full_name LIKE ? LIMIT 1", Prefix))
 		rows, err := stmt.Query(OrganizerfullName)
+		stmt.Close()
 		if err != nil {
 			Logging("Ошибка выполения запроса", err)
 			return err
@@ -208,6 +213,7 @@ func ParserProtocol(p Protocol) error {
 			ContactPerson := p.ContactPerson
 			stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %sorganizer SET full_name = ?, post_address = ?, fact_address = ?, contact_email = ?, contact_phone = ?, contact_person = ?", Prefix))
 			res, err := stmt.Exec(OrganizerfullName, OrgPostAddress, OrgUrAddress, ContactEmail, ContactPhone, ContactPerson)
+			stmt.Close()
 			if err != nil {
 				Logging("Ошибка вставки организатора", err)
 				return err
@@ -223,6 +229,7 @@ func ParserProtocol(p Protocol) error {
 	if PwCode != "" && PwName != "" {
 		stmt, _ := db.Prepare(fmt.Sprintf("SELECT id_placing_way FROM %splacing_way WHERE code = ? AND name = ? LIMIT 1", Prefix))
 		rows, err := stmt.Query(PwCode, PwName)
+		stmt.Close()
 		if err != nil {
 			Logging("Ошибка выполения запроса", err)
 			return err
@@ -238,6 +245,7 @@ func ParserProtocol(p Protocol) error {
 			rows.Close()
 			stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %splacing_way SET code= ?, name= ?", Prefix))
 			res, err := stmt.Exec(PwCode, PwName)
+			stmt.Close()
 			if err != nil {
 				Logging("Ошибка вставки placing way", err)
 				return err
@@ -253,6 +261,7 @@ func ParserProtocol(p Protocol) error {
 	if true {
 		stmt, _ := db.Prepare(fmt.Sprintf("SELECT id_etp FROM %setp WHERE name = ? AND url = ? LIMIT 1", Prefix))
 		rows, err := stmt.Query(etpName, etpUrl)
+		stmt.Close()
 		if err != nil {
 			Logging("Ошибка выполения запроса", err)
 			return err
@@ -268,6 +277,7 @@ func ParserProtocol(p Protocol) error {
 			rows.Close()
 			stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %setp SET name = ?, url = ?, conf=0", Prefix))
 			res, err := stmt.Exec(etpName, etpUrl)
+			stmt.Close()
 			if err != nil {
 				Logging("Ошибка вставки etp", err)
 				return err
@@ -290,6 +300,7 @@ func ParserProtocol(p Protocol) error {
 	idTender := 0
 	stmtt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %stender SET id_region = 0, id_xml = ?, purchase_number = ?, doc_publish_date = ?, href = ?, purchase_object_info = ?, type_fz = ?, id_organizer = ?, id_placing_way = ?, id_etp = ?, end_date = ?, scoring_date = ?, bidding_date = ?, cancel = ?, date_version = ?, num_version = ?, notice_version = ?, xml = ?, print_form = ?", Prefix))
 	rest, err := stmtt.Exec(IdXml, RegistryNumber, DatePublished, Href, PurchaseObjectInfo, typeFz, IdOrganizer, IdPlacingWay, IdEtp, EndDate, ScoringDate, BiddingDate, cancelStatus, DateUpdated, Version, NoticeVersion, UrlXml, PrintForm)
+	stmtt.Close()
 	if err != nil {
 		Logging("Ошибка вставки tender", err)
 		return err
@@ -302,6 +313,7 @@ func ParserProtocol(p Protocol) error {
 		attachUrl := att.AttachUrl
 		stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %sattachment SET id_tender = ?, file_name = ?, url = ?", Prefix))
 		_, err := stmt.Exec(idTender, attachName, attachUrl)
+		stmt.Close()
 		if err != nil {
 			Logging("Ошибка вставки attachment", err)
 			return err
@@ -315,6 +327,7 @@ func ParserProtocol(p Protocol) error {
 		idLot := 0
 		stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %slot SET id_tender = ?, lot_number = ?, max_price = ?, currency = ?", Prefix))
 		res, err := stmt.Exec(idTender, LotNumber, MaxPrice, Currency)
+		stmt.Close()
 		if err != nil {
 			Logging("Ошибка вставки lot", err)
 			return err
@@ -326,6 +339,7 @@ func ParserProtocol(p Protocol) error {
 			attachUrl := attL.AttachUrl
 			stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %sattachment SET id_tender = ?, file_name = ?, url = ?", Prefix))
 			_, err := stmt.Exec(idTender, attachName, attachUrl)
+			stmt.Close()
 			if err != nil {
 				Logging("Ошибка вставки attachmentLot", err)
 				return err
@@ -337,6 +351,7 @@ func ParserProtocol(p Protocol) error {
 			if lot.Customers[0].FullName != "" {
 				stmt, _ := db.Prepare(fmt.Sprintf("SELECT id_customer FROM %scustomer WHERE full_name LIKE ? LIMIT 1", Prefix))
 				rows, err := stmt.Query(lot.Customers[0].FullName)
+				stmt.Close()
 				if err != nil {
 					Logging("Ошибка выполения запроса", err)
 					return err
@@ -357,6 +372,7 @@ func ParserProtocol(p Protocol) error {
 					}
 					stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %scustomer SET full_name = ?, is223=1, reg_num = ?", Prefix))
 					res, err := stmt.Exec(lot.Customers[0].FullName, out)
+					stmt.Close()
 					if err != nil {
 						Logging("Ошибка вставки организатора", err)
 						return err
@@ -372,6 +388,7 @@ func ParserProtocol(p Protocol) error {
 			deliveryTerm := cusR.Term
 			stmt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %scustomer_requirement SET id_lot = ?, id_customer = ?, delivery_place = ?, delivery_term = ?", Prefix))
 			_, err := stmt.Exec(idLot, idCustomer, deliveryPlace, deliveryTerm)
+			stmt.Close()
 			if err != nil {
 				Logging("Ошибка вставки customer_requirement", err)
 				return err
@@ -388,6 +405,7 @@ func ParserProtocol(p Protocol) error {
 		okpd2GroupCode, okpd2GroupLevel1Code := GetOkpd(okpd2Code)
 		stmtr, _ := db.Prepare(fmt.Sprintf("INSERT INTO %spurchase_object SET id_lot = ?, id_customer = ?, okpd2_code = ?, okpd2_group_code = ?, okpd2_group_level1_code = ?, okpd_name = ?, name = ?, quantity_value = ?, customer_quantity_value = ?", Prefix))
 		_, errr := stmtr.Exec(idLot, idCustomer, okpd2Code, okpd2GroupCode, okpd2GroupLevel1Code, okpdName, lot.LotSubject, QuantityValue, QuantityValue)
+		stmtr.Close()
 		if errr != nil {
 			Logging("Ошибка вставки purchase_object", errr)
 			return err
@@ -410,6 +428,7 @@ func TenderKwords(db *sql.DB, idTender int) error {
 	resString := ""
 	stmt, _ := db.Prepare(fmt.Sprintf("SELECT DISTINCT po.name, po.okpd_name FROM %spurchase_object AS po LEFT JOIN %slot AS l ON l.id_lot = po.id_lot WHERE l.id_tender = ?", Prefix, Prefix))
 	rows, err := stmt.Query(idTender)
+	stmt.Close()
 	if err != nil {
 		Logging("Ошибка выполения запроса", err)
 		return err
@@ -432,6 +451,7 @@ func TenderKwords(db *sql.DB, idTender int) error {
 	rows.Close()
 	stmt1, _ := db.Prepare(fmt.Sprintf("SELECT DISTINCT file_name FROM %sattachment WHERE id_tender = ?", Prefix))
 	rows1, err := stmt1.Query(idTender)
+	stmt1.Close()
 	if err != nil {
 		Logging("Ошибка выполения запроса", err)
 		return err
@@ -451,6 +471,7 @@ func TenderKwords(db *sql.DB, idTender int) error {
 	idOrg := 0
 	stmt2, _ := db.Prepare(fmt.Sprintf("SELECT purchase_object_info, id_organizer FROM %stender WHERE id_tender = ?", Prefix))
 	rows2, err := stmt2.Query(idTender)
+	stmt2.Close()
 	if err != nil {
 		Logging("Ошибка выполения запроса", err)
 		return err
@@ -475,6 +496,7 @@ func TenderKwords(db *sql.DB, idTender int) error {
 	if idOrg != 0 {
 		stmt3, _ := db.Prepare(fmt.Sprintf("SELECT full_name, inn FROM %sorganizer WHERE id_organizer = ?", Prefix))
 		rows3, err := stmt3.Query(idOrg)
+		stmt3.Close()
 		if err != nil {
 			Logging("Ошибка выполения запроса", err)
 			return err
@@ -500,6 +522,7 @@ func TenderKwords(db *sql.DB, idTender int) error {
 	}
 	stmt4, _ := db.Prepare(fmt.Sprintf("SELECT DISTINCT cus.inn, cus.full_name FROM %scustomer AS cus LEFT JOIN %spurchase_object AS po ON cus.id_customer = po.id_customer LEFT JOIN %slot AS l ON l.id_lot = po.id_lot WHERE l.id_tender = ?", Prefix, Prefix, Prefix))
 	rows4, err := stmt4.Query(idTender)
+	stmt4.Close()
 	if err != nil {
 		Logging("Ошибка выполения запроса", err)
 		return err
@@ -525,6 +548,7 @@ func TenderKwords(db *sql.DB, idTender int) error {
 	resString = re.ReplaceAllString(resString, " ")
 	stmtr, _ := db.Prepare(fmt.Sprintf("UPDATE %stender SET tender_kwords = ? WHERE id_tender = ?", Prefix))
 	_, errr := stmtr.Exec(resString, idTender)
+	stmtr.Close()
 	if errr != nil {
 		Logging("Ошибка вставки TenderKwords", errr)
 		return err
@@ -554,6 +578,7 @@ func AddVerNumber(db *sql.DB, RegistryNumber string) error {
 	mapTenders := make(map[int]int)
 	stmt, _ := db.Prepare(fmt.Sprintf("SELECT id_tender FROM %stender WHERE purchase_number = ? ORDER BY UNIX_TIMESTAMP(date_version) ASC", Prefix))
 	rows, err := stmt.Query(RegistryNumber)
+	stmt.Close()
 	if err != nil {
 		Logging("Ошибка выполения запроса", err)
 		return err
@@ -572,6 +597,7 @@ func AddVerNumber(db *sql.DB, RegistryNumber string) error {
 	for vn, idt := range mapTenders {
 		stmtr, _ := db.Prepare(fmt.Sprintf("UPDATE %stender SET num_version = ? WHERE id_tender = ?", Prefix))
 		_, errr := stmtr.Exec(vn, idt)
+		stmtr.Close()
 		if errr != nil {
 			Logging("Ошибка вставки NumVersion", errr)
 			return err
