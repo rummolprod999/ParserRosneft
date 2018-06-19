@@ -106,7 +106,7 @@ func Parser() {
 			Logging("Новый URL", UrlXml)
 		}
 	}
-	Dsn := fmt.Sprintf("%s:%s@/%s?charset=utf8&parseTime=true&readTimeout=60m&maxAllowedPacket=0&timeout=60m&writeTimeout=60m&autocommit=true&loc=Local", UserDb, PasswordDb, DbName)
+	Dsn := fmt.Sprintf("%s:%s@/%s?charset=utf8&parseTime=true&readTimeout=60m&maxAllowedPacket=0&timeout=60m&writeTimeout=60m&autocommit=true", UserDb, PasswordDb, DbName)
 	db, err := sql.Open("mysql", Dsn)
 	defer db.Close()
 	//db.SetMaxOpenConns(2)
@@ -136,7 +136,7 @@ func ParserProtocol(p Protocol, db *sql.DB) error {
 	DateUpdatedS = DateUpdatedS[:19]
 	DatePublished, _ := time.Parse(layout, DatePublishedS)
 	DateUpdated, _ := time.Parse(layout, DateUpdatedS)
-
+    //fmt.Println(DatePublished)
 	IdXml := p.IdProtocol
 	Version := 0
 
