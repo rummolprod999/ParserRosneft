@@ -18,6 +18,7 @@ var fl FileProtocols
 var UrlXml string
 var Addtender = 0
 var HasMoreProcedures = 1
+var typeFz = 51
 
 func DownLoadFile() string {
 	tNow := time.Now()
@@ -139,8 +140,8 @@ func ParserProtocol(p Protocol, db *sql.DB) error {
 	IdXml := p.IdProtocol
 	Version := 0
 
-	stmt, _ := db.Prepare(fmt.Sprintf("SELECT id_tender FROM %stender WHERE id_xml = ? AND purchase_number = ? AND date_version = ?", Prefix))
-	res, err := stmt.Query(IdXml, RegistryNumber, DateUpdated)
+	stmt, _ := db.Prepare(fmt.Sprintf("SELECT id_tender FROM %stender WHERE id_xml = ? AND purchase_number = ? AND date_version = ? AND type_fz = ?", Prefix))
+	res, err := stmt.Query(IdXml, RegistryNumber, DateUpdated, typeFz)
 	stmt.Close()
 	if err != nil {
 		Logging("Ошибка выполения запроса", err)
@@ -154,8 +155,8 @@ func ParserProtocol(p Protocol, db *sql.DB) error {
 	res.Close()
 	var cancelStatus = 0
 	if RegistryNumber != "" {
-		stmt, err := db.Prepare(fmt.Sprintf("SELECT id_tender, date_version FROM %stender WHERE purchase_number = ? AND cancel=0", Prefix))
-		rows, err := stmt.Query(RegistryNumber)
+		stmt, err := db.Prepare(fmt.Sprintf("SELECT id_tender, date_version FROM %stender WHERE purchase_number = ? AND cancel=0 AND type_fz = ?", Prefix))
+		rows, err := stmt.Query(RegistryNumber, typeFz)
 		stmt.Close()
 		if err != nil {
 			Logging("Ошибка выполения запроса", err)
@@ -296,7 +297,7 @@ func ParserProtocol(p Protocol, db *sql.DB) error {
 	if ScoringDateS != "" {
 		ScoringDate, _ = time.Parse(layout, ScoringDateS[:19])
 	}
-	typeFz := 1
+	//typeFz := 1
 	idTender := 0
 	stmtt, _ := db.Prepare(fmt.Sprintf("INSERT INTO %stender SET id_region = 0, id_xml = ?, purchase_number = ?, doc_publish_date = ?, href = ?, purchase_object_info = ?, type_fz = ?, id_organizer = ?, id_placing_way = ?, id_etp = ?, end_date = ?, scoring_date = ?, bidding_date = ?, cancel = ?, date_version = ?, num_version = ?, notice_version = ?, xml = ?, print_form = ?", Prefix))
 	rest, err := stmtt.Exec(IdXml, RegistryNumber, DatePublished, Href, PurchaseObjectInfo, typeFz, IdOrganizer, IdPlacingWay, IdEtp, EndDate, ScoringDate, BiddingDate, cancelStatus, DateUpdated, Version, NoticeVersion, UrlXml, PrintForm)
@@ -576,8 +577,8 @@ func GetOkpd(s string) (int, string) {
 func AddVerNumber(db *sql.DB, RegistryNumber string) error {
 	verNum := 1
 	mapTenders := make(map[int]int)
-	stmt, _ := db.Prepare(fmt.Sprintf("SELECT id_tender FROM %stender WHERE purchase_number = ? ORDER BY UNIX_TIMESTAMP(date_version) ASC", Prefix))
-	rows, err := stmt.Query(RegistryNumber)
+	stmt, _ := db.Prepare(fmt.Sprintf("SELECT id_tender FROM %stender WHERE purchase_number = ? AND type_fz = ? ORDER BY UNIX_TIMESTAMP(date_version) ASC", Prefix))
+	rows, err := stmt.Query(RegistryNumber, typeFz)
 	stmt.Close()
 	if err != nil {
 		Logging("Ошибка выполения запроса", err)
