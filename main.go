@@ -51,7 +51,9 @@ func main() {
 		Logging("")
 		Parser()
 		Logging(fmt.Sprintf("Добавили тендеров %d", Addtender))
+		Logging(fmt.Sprintf("Обновили тендеров %d", Updatetender))
 		Addtender = 0
+		Updatetender = 0
 	}
 	//Parser()
 	Logging("Конец парсинга")

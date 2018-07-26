@@ -17,6 +17,7 @@ import (
 var fl FileProtocols
 var UrlXml string
 var Addtender = 0
+var Updatetender = 0
 var HasMoreProcedures = 1
 var typeFz = 51
 
@@ -136,7 +137,7 @@ func ParserProtocol(p Protocol, db *sql.DB) error {
 	DateUpdatedS = DateUpdatedS[:19]
 	DatePublished, _ := time.Parse(layout, DatePublishedS)
 	DateUpdated, _ := time.Parse(layout, DateUpdatedS)
-    //fmt.Println(DatePublished)
+	//fmt.Println(DatePublished)
 	IdXml := p.IdProtocol
 	Version := 0
 
@@ -154,6 +155,7 @@ func ParserProtocol(p Protocol, db *sql.DB) error {
 	}
 	res.Close()
 	var cancelStatus = 0
+	var updated = false
 	if RegistryNumber != "" {
 		stmt, err := db.Prepare(fmt.Sprintf("SELECT id_tender, date_version FROM %stender WHERE purchase_number = ? AND cancel=0 AND type_fz = ?", Prefix))
 		rows, err := stmt.Query(RegistryNumber, typeFz)
@@ -163,6 +165,7 @@ func ParserProtocol(p Protocol, db *sql.DB) error {
 			return err
 		}
 		for rows.Next() {
+			updated = true
 			var idTender int
 			var dateVersion time.Time
 			err = rows.Scan(&idTender, &dateVersion)
@@ -308,7 +311,11 @@ func ParserProtocol(p Protocol, db *sql.DB) error {
 	}
 	idt, err := rest.LastInsertId()
 	idTender = int(idt)
-	Addtender++
+	if updated {
+		Updatetender++
+	} else {
+		Addtender++
+	}
 	for _, att := range p.Attachments {
 		attachName := att.AttachName
 		attachUrl := att.AttachUrl
