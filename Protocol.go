@@ -2,6 +2,7 @@ package main
 
 type Protocol struct {
 	RegistryNumber           string       `xml:"registryNumber"`
+	Url                      string       `xml:"url_to_showcase"`
 	IdProtocol               string       `xml:"id,attr"`
 	DatePublished            string       `xml:"datePublished"`
 	DateUpdated              string       `xml:"dateUpdated"`
