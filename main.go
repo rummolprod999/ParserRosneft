@@ -42,7 +42,7 @@ func SaveStack() {
 func main() {
 	defer SaveStack()
 	Logging("Начало парсинга")
-	count := 0
+	/*count := 0
 	for {
 		if HasMoreProcedures == 0 || count > 20 {
 			break
@@ -54,8 +54,12 @@ func main() {
 		Logging(fmt.Sprintf("Обновили тендеров %d", Updatetender))
 		Addtender = 0
 		Updatetender = 0
-	}
+	}*/
 	//Parser()
+	p := ParserRosneftSoap{maxPage: 0}
+	p.Parser()
+	Logging(fmt.Sprintf("Добавили тендеров %d", Addtender))
+	Logging(fmt.Sprintf("Обновили тендеров %d", Updatetender))
 	Logging("Конец парсинга")
 
 }

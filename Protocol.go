@@ -17,6 +17,8 @@ type Protocol struct {
 }
 
 type FileProtocols struct {
+	TotalPage         int        `xml:"Body>proceduresResponse>totalPage"`
+	CurrentPage       int        `xml:"Body>proceduresResponse>currentPage"`
 	HasMoreProcedures int        `xml:"Body>proceduresResponse>has_more_procedures"`
 	Protocols         []Protocol `xml:"Body>proceduresResponse>procedures>procedure"`
 	Test              string     `xml:",innerxml"`
