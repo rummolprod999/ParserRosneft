@@ -5,6 +5,7 @@ import (
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/tiaguinho/gosoap"
+	"net/http"
 	"os/exec"
 	"strings"
 	"time"
@@ -15,7 +16,10 @@ type ParserRosneftSoap struct {
 }
 
 func soap_request(section string, page int) FileProtocols {
-	soap, err := gosoap.SoapClient("http://api.tektorg.ru/procedures/wsdl")
+	httpClient := &http.Client{
+		Timeout: 1500 * time.Millisecond,
+	}
+	soap, err := gosoap.SoapClient("http://api.tektorg.ru/procedures/wsdl", httpClient)
 	if err != nil {
 		Logging(err)
 		panic("error get soap")
@@ -126,7 +130,7 @@ func (pr *ParserRosneftSoap) ParserProtocol(p Protocol, db *sql.DB) error {
 		}
 		rows.Close()
 	}
-	Href := fmt.Sprintf("http://rn.tektorg.ru/ru/procurement/procedures/%s", p.IdProtocol)
+	Href := p.Url
 	PurchaseObjectInfo := p.PurchaseObjectInfo
 	NoticeVersion := ""
 	PrintForm := Href
