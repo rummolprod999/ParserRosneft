@@ -236,6 +236,12 @@ func (pr *ParserRosneftSoap) ParserProtocol(p Protocol, db *sql.DB) error {
 
 	var EndDate, BiddingDate, ScoringDate = time.Time{}, time.Time{}, time.Time{}
 	EndDateS := p.DateEndRegistration
+	if EndDateS == "" || strings.Contains(EndDateS, "1970-01-01"){
+		EndDateS = p.DateRegistrationTech
+	}
+	if EndDateS == "" || strings.Contains(EndDateS, "1970-01-01"){
+		EndDateS = p.DateEndRegistrationCom
+	}
 	if EndDateS != "" {
 		EndDate, _ = time.Parse(layout, EndDateS[:19])
 	}

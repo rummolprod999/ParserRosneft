@@ -10,6 +10,8 @@ type Protocol struct {
 	ProcedureTypeId          string       `xml:"procedureType>id"`
 	ProcedureTypeName        string       `xml:"procedureType>title"`
 	DateEndRegistration      string       `xml:"dateEndRegistration"`
+	DateRegistrationTech     string       `xml:"dateRegistrationTech"`
+	DateEndRegistrationCom   string       `xml:"dateEndRegistrationCom"`
 	DateEndSecondPartsReview string       `xml:"dateEndSecondPartsReview"`
 	Currency                 string       `xml:"currency"`
 	Attachments              []Attachment `xml:"documents>document"`
